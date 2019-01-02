@@ -1,0 +1,1240 @@
+---
+title: "Analysis and Exploration on Prosper Loan Data"
+author: "Nisrein Sada"
+date: "December 8, 2018"
+output: rmarkdown::github_document
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+knitr::opts_chunk$set(fig.width=9,fig.height=5,fig.path='Figs/',
+                      fig.align='center',tidy=TRUE,
+                      echo=FALSE,warning=FALSE,message=FALSE)
+library(ggplot2)
+library(gridExtra)
+library(stats)
+library(dplyr)
+library(GGally)
+library(scales)
+library(memisc)
+
+options(scipen = 999)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Load_the_Data, warning=FALSE}
+# Load the Data
+loan_data <- 
+  read.csv('/Data Analyst/module 6/final project/prosperLoanData.csv')
+#head(loan_data)
+```
+In this Exploration we are looking into dataset that contains 113,937 propser 
+loans with the following attributes: loan amount, borrower income, borrower rate
+,borrower employment status. This will help us study the loans and the borrowers.
+Propser is a peer-to-peer lending platform where individuals can either invest
+or borrow loan.
+I am trying to look into 3 main questions:
+
+1) find the characteristics of borrowers?
+by looking into the following variables borrowerRate, borrowerAPR, income-range, IncomeToDebtRatio,creditScoreRating,...
+
+2) find the characteristic of the loan?
+using the following variables: loan status, loanPropserRating, loanGrade,
+loan term, loanListingYear,..
+
+3) why people lend money?
+looking into the loan listing categories. 
+# Univariate Plots Section
+
+i will start the investigation by looking at the loan amount
+
+### How much people borrow (LoanOriginalAmount): 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_Plots1}
+# original loan amount of data and the stats
+summary(loan_data$LoanOriginalAmount)
+IQR(loan_data$LoanOriginalAmount)
+ggplot(aes(x = LoanOriginalAmount), data = loan_data) + geom_histogram()
+```
+
+In the above figure we noticed that it is the loan amount is right skewed and is
+long tailed and this was fixed it to better understand the amount of loans using
+log10 tranformation as can be seen in the following figure.
+i also used IQR range to limit x axis values considering values above IQR*1.5 
+from Q3 as outliers.
+
+The binwidth was choosen using Freedman-Diaconis rule.
+The loan median is 6500 which means 50% of data is below this number and 50% is 
+higer than this. from the histogram below we can see that the most frequent loan 
+amount is 4000 and the second most is 15000 followed by 11000 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_Plots2}
+# original loan amount of data and the stats
+
+# defining the binwidth for the histogram using Freedman-Diaconis rule
+bw <- diff(range(loan_data$LoanOriginalAmount))/
+  (2 * IQR(loan_data$LoanOriginalAmount)/
+     length(loan_data$LoanOriginalAmount)^(1/3))
+
+#histogram for the loan amount and scaled considering IQR*1.5 is the maximum 
+#value   
+ggplot(aes(x = LoanOriginalAmount), data = loan_data) +
+  geom_histogram(binwdith = bw) +
+  scale_x_continuous(breaks = seq(1000,24000,2000), limits =c(1000,24000))
+```
+
+##What are the categories the loans are listed under (Listing Category of loan):
+
+The category of the listing that the borrower selected when posting their 
+listing: 0 - Not Available, 1 - Debt Consolidation, 2 - Home Improvement,
+3 - Business, 4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 
+8 - Baby&Adoption, 9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 
+12 - Green Loans, 13 - Household Expenses, 14 - Large Purchases,
+15 - Medical/Dental, 16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation,
+20 - Wedding Loans.I created a labeled column for the listing.
+
+from the histogram most of the loans are listed under Debt Consolidation
+category [number 1] with 51.25 of all the loans followed by Not Available with 
+14.9% . and the least listings are for RVs and Green loans with 0.0456% and
+0.0518% respectively. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots13}
+# group the loans by category to get the count of each category using dyplr 
+#group by (grouping), summarize(get the count of each group) and mutate for the percentage of each group.
+
+loans_by_category <- group_by(loan_data, ListingCategory..numeric.)
+loans_mp_by_category <- summarise(loans_by_category, n = n())
+loans_mp_by_category <- mutate(loans_mp_by_category, freq = n/sum(n))
+loans_mp_by_category <- arrange(loans_mp_by_category, n)
+
+loans_mp_by_category
+
+# the listing labels names that i will use to create the new variable for the
+#listing categories
+
+listing_labels <- c( 'Not Available', 'Debt Consolidation', 'Home Improvement', 'Business','Personal Loan', 'Student Use', 'Auto',  'Other',  'Baby&Adoption',
+'Boat', 'Cosmetic Procedure',  'Engagement Ring', 'Green Loans', 
+'Household Expenses', 'Large Purchases', 'Medical/Dental', 'Motorcycle', 'RV', 
+'Taxes', 'Vacation',  'Wedding Loans')
+
+#created a new factor variable that map the listing category numbers with the 
+#listing labels above
+
+loan_data$ListingCategory.labeled <- 
+  factor(loan_data$ListingCategory..numeric., levels = seq(0,20),
+         labels = listing_labels)
+
+summary(loan_data$ListingCategory.labeled)
+
+# bar plor for the percentage of each loan listing cateogry
+
+ggplot(data=loan_data,aes(y=(..count..)*100/sum(..count..),
+              x=loan_data$ListingCategory.labeled))+geom_bar(fill="#099DD9") + scale_y_continuous() + coord_flip() + ylab("Percentage of loans listings") +
+  xlab('Listing Category')
+
+```
+
+### Loans Status 
+The percentage of current loans in the data we have is 49.7%. the percent of 
+default is 4.4%.
+The categories in the loan status are: Cancelled,  Chargedoff, Completed, 
+Current, Defaulted, FinalPaymentInProgress, PastDue. The PastDue status will be accompanied by a delinquency bucket which are (1-15 days, 16-30 days, 31-60 days
+, 61-90 days and 91-120 days).
+The loan categories explained: 
+- cancelled: does not have to paid.
+- Chargedoff: loan is more than 120day past due.
+- default:  failure to repay a loan for an extended period off time.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots2}
+
+summary(loan_data$LoanStatus)
+# percentage of each loan status available in the data.
+
+ggplot(data=loan_data,aes(y=(..count..)*100/sum(..count..),
+    x=loan_data$LoanStatus))+geom_bar(fill="#099DD9") + scale_y_continuous() + coord_flip() + ylab("Percentage of loans listings") + xlab('Loan Status')
+```
+
+### LoanStatus modified
+reduce the number of levels in loan status. by combining the pastdue status
+together, charged off with defaulted, payment in progress with current and 
+cancelled with completed since it will not require any payment. so the new 
+variable has 4 levels.
+the percentage of current loans is 49%, pastdue is around 2%, defaulted around
+15% and completed around 33% . 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots3}
+#creation of new variable that combine different loan status together 
+loan_data$LoanStatus.modified <- loan_data$LoanStatus
+
+levels(loan_data$LoanStatus.modified)
+
+# change the levels in the loan status into 4 categories: completed, defaulted,
+#current and Pastdue
+levels(loan_data$LoanStatus.modified) <- 
+  c("Completed","Defaulted", "Completed", "Current", "Defaulted", "Current",
+    "Past Due","Past Due","Past Due","Past Due","Past Due","Past Due")
+
+levels(loan_data$LoanStatus.modified)
+
+# bar plot for the percentages of combined loan status variable 
+ggplot(data=loan_data,aes(y=(..count..)*100/sum(..count..),
+x=loan_data$LoanStatus.modified))+geom_bar(fill="#099DD9") + 
+scale_y_continuous() + coord_flip() + ylab("Percentage of loans listings") + 
+  xlab("Loan Status") 
+```
+
+
+### Employment status 
+The percentage of the Employed  in the data we have is 59.1%. and the percent 
+of not employed is 0.733%. this column has an empty level which i will replace
+with not available level.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots4}
+
+summary(loan_data$EmploymentStatus)
+levels(loan_data$EmploymentStatus)
+
+# replace the empty employement level with not available level. 
+levels(loan_data$EmploymentStatus) <- 
+  c("Not available","Employed", "Full-time", "Not available", "Not employed", "Other","Part-time","Retired","Self-employed")
+
+# bar plot for the percentage of the differnt employement status.
+ggplot(data=loan_data,aes(y=(..count..)*100/sum(..count..),
+x=loan_data$EmploymentStatus))+geom_bar(fill="#336633") + 
+  scale_y_continuous() + coord_flip() +
+  ylab("Percentage of Different Employment Status") + xlab('Employment Status')
+```
+
+### Employment status  Modified
+the highest percentage is for the employed.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots5}
+
+# create new employment status variable that combine different levels together.
+
+loan_data$EmploymentStatus.modified <- loan_data$EmploymentStatus
+
+# combine different employment levels together 
+levels(loan_data$EmploymentStatus.modified) <- 
+  c("Not available","Employed", "Employed", "Not available", "Not employed", "Other","Employed","Retired","Employed")
+
+# bar plot for the combined employment status
+
+ggplot(data=loan_data,aes(y=(..count..)*100/sum(..count..),
+x=EmploymentStatus.modified))+geom_bar(fill="#336633") + scale_y_continuous() + coord_flip() + ylab("Percentage of Different Employment Status") +
+  xlab('Combined Employement Status')
+
+```
+
+### How much borrower earn(Income range):
+most of the income range in this data is 25,000-49,999 followed by 50,000 - 
+74,999. and this seems like normally distributed Income range. we can that the 
+number of unemployed is low compared to other income segments. 
+it is worth mentioning that income range of 0 does not make sense and needs 
+investigation on what it means. it might be missing data though it is not 
+mentioned in the data description.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots6}
+
+summary(loan_data$IncomeRange)
+# income range histogram
+qplot( x= IncomeRange,  data= loan_data) 
+```
+
+### AvailableBankcardCredit
+
+I removed the NA values and the resulting histogram was long tailed. The median
+is 4100, 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots7}
+# subset the available bank credit to remove the na values
+available_bank_credit_subset  <- subset(loan_data, !is.na(loan_data$AvailableBankcardCredit))
+
+summary(available_bank_credit_subset$AvailableBankcardCredit)
+
+#IQR range to be used in limiting the scales 
+IQR(available_bank_credit_subset$AvailableBankcardCredit)
+# histogram for the AvailableBankcardCredit that is log scaled to remove the
+#long tail data
+p1 <- qplot(x= AvailableBankcardCredit, data = available_bank_credit_subset)+scale_x_log10()
+
+# boxplot for the AvailableBankcardCredit
+p2 <- qplot(y= AvailableBankcardCredit, data = available_bank_credit_subset,
+geom = 'boxplot') + coord_cartesian ( ylim = c(0,quantile(available_bank_credit_subset$AvailableBankcardCredit,0.75) + IQR(available_bank_credit_subset$AvailableBankcardCredit)*1.5))
+
+grid.arrange(p1,p2, ncol = 2)
+```
+
+### Debt to income ratio
+I removed the NA values (8554) and the resulting histogram was long tailed. the
+median is 0.220 and the values are from 0 - 10.010 though the Q3 is 0.320 so i 
+removed the values that can be outliers based on any value greater than IQR*1.5 + 
+Q3 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots8}
+summary(loan_data$DebtToIncomeRatio)
+# subset the DebtToIncomeRatio to remove the na values 
+DebtToIncomeRatio_subset  <- subset(loan_data, 
+                                    !is.na(loan_data$DebtToIncomeRatio))
+summary(DebtToIncomeRatio_subset$DebtToIncomeRatio)
+
+# IQR range 
+IQR(DebtToIncomeRatio_subset$DebtToIncomeRatio)
+
+# histogram for the DebtToIncomeRatio log scaled to remove the long tailed 
+#values
+p1 <- qplot(x= DebtToIncomeRatio, data = DebtToIncomeRatio_subset) +
+  scale_x_log10()
+
+#boxplot that is limited using the IQR*1.5 as outliers
+
+p2 <- qplot(y= DebtToIncomeRatio, data = 
+      DebtToIncomeRatio_subset,geom = 'boxplot') + coord_cartesian ( ylim = c(0,quantile(DebtToIncomeRatio_subset$DebtToIncomeRatio,0.75) + IQR(DebtToIncomeRatio_subset$DebtToIncomeRatio)*1.5))
+
+grid.arrange(p1,p2, ncol = 2)
+```
+
+### TotalProsperLoans : 
+Number of previous loans. i replaced NA values with 0 since the nulls in this
+columns corresponds to no prior loans. most of the loans here don't have 
+previous loans[90852 records].
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots9}
+
+summary(loan_data$TotalProsperLoans)
+# replace the TotalProsperLoan NA's to 0 
+loan_data$TotalProsperLoans[is.na(loan_data$TotalProsperLoan)] <- 0
+
+summary(loan_data$TotalProsperLoans)
+# histogram for the number of previous loans
+qplot(x= TotalProsperLoans, data = loan_data)
+```
+
+### CreditScore: 
+A credit score is a numerical expression based on a level analysis of a person's
+credit files, to represent the creditworthiness of an individual. I combined the
+lower and upper range of the present credit score to get the range.
+we have 591 missing values and most of the data in range 660-679 and 680-699.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots10}
+
+# combine the creditscore lower and upper variables using the - to create a new
+#variable CreditScoreRange
+loan_data$CreditScoreRange <- paste(loan_data$CreditScoreRangeLower,loan_data$CreditScoreRangeUpper,
+                                    sep ="-")
+
+# make the new column into a factor variable 
+loan_data$CreditScoreRange <- as.factor(loan_data$CreditScoreRange)
+summary(loan_data$CreditScoreRange)
+# histogram for the creditscore removing the NA values  
+qplot(x= CreditScoreRange, data = subset(loan_data, 
+  loan_data$CreditScoreRange!='NA-NA'))+
+  theme(text = element_text(size =6.5))
+```
+
+### CreditRating: 
+This rating is based on the creditscore range as a metric categorize the score
+ranges in 5 ratings (Very Poor, Fair, Good, Very Good, Exceptional). we used the following rating for the score ranges : 
+ratings for the scores:
+300 -579 --> very poor 
+580 - 669 --> Fair
+670 - 739 --> Good
+740 - 799 --> very good
+800 - 850 --> Exceptional
+from the barplot we can see that most of the scores are in Very Good and Good 
+credit rating
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots11}
+# create new credit rating variable based on the credit score ranges 
+
+loan_data$CreditRating = case_when(
+  as.numeric(loan_data$CreditScoreRangeLower) <=300 &    as.numeric(loan_data$CreditScoreRangeUpper)<=579 ~ 'Very Poor', 
+as.numeric(loan_data$CreditScoreRangeLower) <=580 &  as.numeric(loan_data$CreditScoreRangeUpper)<=669 ~ 'Fair',
+as.numeric(loan_data$CreditScoreRangeLower) <=670 &  as.numeric(loan_data$CreditScoreRangeUpper)<=739 ~ 'Good',
+as.numeric(loan_data$CreditScoreRangeLower) <=740 &  as.numeric(loan_data$CreditScoreRangeUpper)<=799 ~ 'Very Good',
+as.numeric(loan_data$CreditScoreRangeLower) <=800 &  as.numeric(loan_data$CreditScoreRangeUpper)<=900 ~ 'Exceptional',
+                             TRUE ~ '0')
+
+# convert the column into factor variable 
+loan_data$CreditRating <- as.factor(loan_data$CreditRating)
+
+# make the creditRating orderd 
+loan_data$CreditRating <- ordered(loan_data$CreditRating, 
+    levels=c("Exceptional", "Very Good", "Good", "Fair", "Very Poor","0"))
+
+summary(loan_data$CreditRating)
+# histogram for the creditRating remove 0 rating (NA)
+qplot(x= CreditRating, data = subset(loan_data, loan_data$CreditRating!='0'))
+
+```
+
+### BorrowerRate : 
+The Borrower's interest rate for this loan.we can see that the borrower rates in
+the data range from 0 - 0.4975 with 50% of the data around a rate of 18.4% and a
+mean of 19.28% data.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots12}
+summary(loan_data$BorrowerRate)
+# borrowerRate histogram
+qplot(x= BorrowerRate, data = loan_data,  color = I('black'), 
+      fill = I('#099DD9'))
+```
+
+### BorrowerAPR : 
+The Borrower's Annual Percentage Rate (APR) for the loan.we can see that the 
+borrower rates in the data range from 0.00653% - 0.51229 with 50% of the data 
+around a rate of 20.976% and a mean of 21.88% data.
+The difference between APR and borrower rate that APR reflects not only the 
+interest rate and it depends upon credit score, Prosper Rating, loan amount,
+credit usage and history.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots16}
+summary(loan_data$BorrowerAPR)
+# annual borrower Rate(borrowerAPR) histogram
+qplot(x= BorrowerAPR, data = subset(loan_data, !is.na(BorrowerAPR)), 
+      color = I('black'), fill = I('#099DD9'))
+```
+
+### Loan Term : 
+The length of the loan expressed in months. Most of the loan terms are 36 months 
+(3 years) then 60 months (5 years) and the least common term is 12 months
+(1 year term loan).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots14}
+summary(loan_data$Term)
+# make the term variable into a factor 
+loan_data$Term <- as.factor(loan_data$Term)
+# histogram of term variable
+qplot(x= Term, data = loan_data) 
+summary(loan_data$Term)
+```
+
+### Listing Year and listing month: 
+Here i try to extract the year and the month of the loans listing to see the
+number of listings per year/month. 
+In terms of years, year 2013 had the most listings followed by 2012 while the 
+least listings were in year 2005 followed by 2009(2005 was the year the company
+propser was founded and for 2009 year to have less listing it does make sense
+since it follows the economical crises and collapse of the investment bank 
+Lehman Brothers). The listing months don't have much difference in terms of 
+loans listings though januray have more listings compared to other months.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots15}
+# create  list date variable that converts the listing creation date into date
+loan_data$ListDate <- format(as.Date(loan_data$ListingCreationDate, 
+                                     format="%Y-%m-%d %H:%M:%S"),'%Y-%m-%d')
+
+# extract the year from the listDate variable 
+loan_data$ListYear <- format(as.Date(loan_data$ListingCreationDate, 
+                                     format="%Y-%m-%d %H:%M:%S"),'%Y')
+# convert the listYear into a factor
+loan_data$ListYear <- as.factor(loan_data$ListYear)
+summary((loan_data$ListYear))
+# extract a month from the Listdate 
+loan_data$ListMonth <- format(as.Date(loan_data$ListingCreationDate, 
+                                      format="%Y-%m-%d %H:%M:%S"),'%m')
+# convert the listMonth into a factor
+loan_data$ListMonth <- as.factor(loan_data$ListMonth)
+# histogram of the list year
+q1 <- qplot(x= ListYear, data = loan_data) 
+# histogram of the list month 
+q2 <- qplot(x= ListMonth, data = loan_data) 
+# create the grid for the plots
+grid.arrange(q1,q2, ncol=1)
+
+summary(as.factor(loan_data$ListMonth))
+```
+
+### CreditGrade and propserRating: 
+These two varaibles are used as metric of expected risk associated with the 
+listing.
+creditgrade was used for the period pre2009 that was changed to propserRating 
+after July-2009.  
+From lowest-risk to highest-risk, are labeled AA, A, B, C, D, E, and HR 
+("High Risk") [this based on the propser score which is based on the historical
+data of the user credit and the credit score for the borrower]
+for the period pre-2009 around 20% was for Grade Cc and around 12% of the loans
+were high risk loans and it was the same percentage for A loans. while for the
+post2009 period C still had the highest loans percentage and A percentage 
+increased around 5% and HR loans decreased to around 8% of the total loans.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Univariate_plots17}
+#convert the creditGrade into ordered factor  
+loan_data$CreditGrade <- 
+  ordered(loan_data$CreditGrade,
+levels=c("AA", "A", "B", "C", "D", "E", "HR","NC"))
+#plot the percentage of the credit grade that was only before end of july 2009 
+p1 <- ggplot(data=filter(loan_data,                         ListDate<="2009-07-31"),aes(y=(..count..)/sum(..count..),x=CreditGrade))+
+geom_bar(fill="#336633") + scale_y_continuous()  +ylab("Percentage of loans") 
+
+#make the propser rating ordered from best to worst
+loan_data$ProsperRating..Alpha. <- ordered(loan_data$ProsperRating..Alpha.,
+            levels=c("AA", "A", "B", "C", "D", "E", "HR"))
+
+#plot the percentage of the propser rating that was only after the end of july
+# 2009
+p2 <- ggplot(data=filter(loan_data,ListDate>"2009-07-31"),
+             aes(y=(..count..)/sum(..count..),x=ProsperRating..Alpha.))+
+geom_bar(fill="#336633") + scale_y_continuous()  +ylab("Percentage of loans")
+
+grid.arrange(p1,p2,ncol =1)
+```
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+The data contains 113937 observations and 81 variables.
+
+### What is/are the main feature(s) of interest in your dataset?
+The main features for the desired analysis for the borrower are the creditscore,
+the borrowerRate, Income range and debt to income ratio. and the main features 
+for the loans are the loan status, loan term and loan amount. these factors will
+help us understand the features of the loans that are most likely to be 
+completed or defaulted or charged off and what can affect the loan amount. 
+
+### What other features in the dataset do you think will help support your
+\investigation \into \your \feature(s) of \interest?
+
+so the variables we will look that can help us understand the borrower and the 
+loan category (variable: ListingCategory), Employement status of the borrower, TotalProsperLoans [number of previous loans] and the loan listing year (since 
+the loans might be affected by financial crises or change of loan laws). 
+
+### Did you create any new variables from existing variables in the dataset?
+I created the following new columns:
+
+1) The credit score range: i combined the creditscore upper range and lower 
+range in one column to create levels of the ranges.
+
+2) labeled listing category: factor the listing category numbers and map it to 
+the corrsponding label.
+3) CreditRating: divide the creditscore range into 5 ratings to make it easier 
+to categorize the loans and the borrowers.
+
+4) listingDate, listing year, listing month: from the loan listing date i 
+created these columns by extracting the data from the text and getting the 
+required attribute.
+
+4) loanStatus modified. reduce the number of levels in loan status. by combining
+the pastdue status together, charged off with defaulted, payment in progress
+with current and cancelled with completed since it will not require any payment.
+so the new variable has 4 levels.
+
+5) employmentstatus,modified: merged the full time, part time and self-employed
+under employment status. 
+
+
+### Of the features you investigated, were there any unusual distributions?
+\Did you perform any operations on the data to tidy, adjust, or change the form
+\of the data? If so, why did you do this?
+
+yes.
+
+- some of the variables were long tailed so for these variables such as (DebtToIncomeRatio, AvailableBankcardCredit) i used the log scale to get a 
+normal distribution of the data. 
+
+- for the boxplot: i considered values above 1.5*IQR+Q3 as outliers and thus
+removed them from the plots for the AvailableBankcardCredit, DebtToIncomeRatio 
+
+- The binwidth was choosen using Freedman-Diaconis rule.
+
+- some values were na so for the TotalProsperLoans corrsponding to the previous
+loans. i replaced the na's values with 0's since it was stated that na values 
+meant there were no previous loans.
+
+- the employmentstatus column had an empty level which i replaced with not
+available level.
+other values that contained na's i removed them for the plots of the analysis to
+get better understanding of the variables and the distribution of the variables.
+
+
+# Bivariate Plots Section
+
+The first part i am trying to look into variables that affect the loan amount 
+for the borrower: such as IncomeRange, employment status, creditscore range, debtToIncomeRatio, ListingCategory for the loan, the number of previous loans,
+and DebtToIncomeRatio.
+
+I created pairplot for some of the variables to get an intution about which ones
+can affect the loan amount. from the pairplot it seems that previous loans and
+income range and employment status might affect the loan amount.
+
+also we can see that as expected the borrowerAPR and borrowerRate have a 
+correlation of 0.99. other correlations include:
+- loan amount and borrower rate correlation of 0.329
+- loan amount and borroweraPR 0.323
+- loan amount and available bank credit 0.23
+- borrower rate and available bank credit0.344
+- borrowerAPR and available bank credit 0.349
+
+```{r echo=FALSE , message=FALSE, warning=FALSE, fig.width=9, fig.height=9, Bivariate_Plots_ggpair }
+
+# subset of the columns in the loan data
+loan_data_subset = loan_data[,c('LoanOriginalAmount', 'EmploymentStatus','IncomeRange','TotalProsperLoans', 'DebtToIncomeRatio','AvailableBankcardCredit','BorrowerAPR','BorrowerRate')]
+# create a sample of the loan data using 10,000 points
+loan_samp <- 
+  loan_data[sample(1:length(loan_data_subset$LoanOriginalAmount), 10000), ]
+# pairplot for the selected variables
+ggpairs(loan_data_subset, 
+        columnLabels = c('Loan\nAmount', 'Employment\nStatus',
+                    'Income\nRange','Total\nLoans', 'Debt To\nIncome Ratio',
+                    'Available\nBankcard\nCredit','Borrower\nAPR',
+                    'Borrower\nRate'),
+        lower = list(continuous = wrap("points",size = 8, shape = I('.'))), 
+        upper = list(combo = wrap("box",size=8,outlier.shape = I('.')))) +
+  theme(text = element_text(size=8), 
+  axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size=7))
+```
+
+
+### Listing Category versus the loan amount 
+we can see from the boxplot how that for each listing we have a different loan 
+amount ranges as can be seen in the summary and the boxplot. i will use the
+median for the analysis it is half point of the data and it is not affected by
+the outliers so the highest loan amounts corrsponding to the Debt Consolidation
+with 9500 median and it is followed by baby and adapotion with 9000 median value
+.and the interesting thing that can be seen here is that though Q3 for the Green
+loans making it seem like it is in third place but the median value is 5000 
+implying  large outliers then the business listing for example which had a 7279.
+while the least amount was the student use loans.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots2}
+# boxplot for the loan amount for different loan listings
+ggplot(aes(y = LoanOriginalAmount, x = ListingCategory.labeled ),
+  data =  loan_data) + geom_boxplot() + coord_cartesian(ylim = c(0,20000)) +
+  theme(text = element_text(size=8), 
+     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size=7))
+# display the summary for the loan amount grouped by the listing category
+by(loan_data$LoanOriginalAmount, loan_data$ListingCategory.labeled,summary)
+
+```
+
+### EmploymentStatus versus the loan amount 
+we can see from the boxplot how that for each employment status we have a 
+different loan amount ranges as can be seen in the summary and the boxplot.
+With the highest loan amounts were given to the employed and the least amount
+given to the part timers. so this variable also seem to affect the borrower 
+given loan amounts. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots3}
+# boxplot for the loan amount for different employment status
+ggplot(aes(y = LoanOriginalAmount, x = EmploymentStatus ), data =  loan_data) + geom_boxplot() + coord_cartesian(ylim = c(0, 17500)) 
+
+# display the summary for the loan amount grouped by the employment status
+by(loan_data$LoanOriginalAmount, loan_data$EmploymentStatus,summary)
+```
+
+### IncomeRange versus the loan amount 
+we can see from the boxplot how that for each income range we have a different 
+loan amount ranges as can be seen in the summary and the boxplot.  With the 
+highest loan amounts were given to the Income ranges of 100,000+, followed by 75,000-99,999 and the least amount given to the income range less than 25000 
+[this using the median to compare the values]. Overall this makes sense expect 
+for income range 0.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots4}
+# boxplot for the loan amount for different income ranges
+ggplot(aes(y = LoanOriginalAmount, x = IncomeRange ), data =  loan_data) +
+  geom_boxplot() + theme(text = element_text(size=6.5))
+
+# display the summary for the loan amount grouped by Income ranges
+by(loan_data$LoanOriginalAmount, loan_data$IncomeRange,summary)
+```
+
+### CreditRating versus the loan amount 
+we can see from the boxplot how that for each score rating we have a different
+loan amount as can be seen in the summary and the boxplot.  And as expected that 
+the higher credit rating get higher loan amount by comparing the median for each 
+of the ratings. The exceptional rating has the most followed by the very good
+and the least amount was given to the very poor rating.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots5}
+# create subset of the loan data removing the 0 from creditRating variable
+loan_data.without_na_creditRating <- 
+  subset(loan_data, loan_data$CreditRating!='0') 
+
+# boxplot for the loan amount verus the credit rating
+ggplot(aes(y = LoanOriginalAmount, x = CreditRating ), data =  loan_data.without_na_creditRating) + geom_boxplot() 
+
+# display the summary for the loan amount grouped by creditRating
+by(loan_data.without_na_creditRating$LoanOriginalAmount, loan_data.without_na_creditRating$CreditRating,summary)
+```
+
+### DebtToIncomeratio versus the loan amount 
+from the scatter plot it seems that loan amount is not affected much by the 
+income with debtToincome ratio and this confirmed by the correlation test which
+gives a corrlation of 0.01 which is very weak correlation.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots6}
+# scatter plot of the loan amount versus debtToIncome ratio with introduced 
+#jitter to remove the overlapping of points
+ggplot(aes(x = LoanOriginalAmount, y = DebtToIncomeRatio), data = DebtToIncomeRatio_subset) + geom_jitter(alpha = 0.05) + theme(text = element_text(size=6.5))
+
+# correlation between loan amount and debt to income ratio
+cor.test(DebtToIncomeRatio_subset$LoanOriginalAmount,
+         DebtToIncomeRatio_subset$DebtToIncomeRatio)
+```
+
+### borrowerRate versus the loan amount 
+from the scatter plot it seems that for larger loan amounts the borrower rate
+decrease as expected and and the correlation between the loan amount and the borrowerRate is 0.3289.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots7}
+
+# scatter plot of the loan amount versus borrowerRate ratio with introduced 
+#jitter to remove the overlapping of points
+ggplot(aes(x = LoanOriginalAmount, y = BorrowerRate), data = loan_data) + geom_jitter(alpha = 0.05)
+
+# correlation between loan amount and BorrowerRate
+cor.test(loan_data$LoanOriginalAmount,loan_data$BorrowerRate)
+```
+
+### borrowerAPR versus the loan amount 
+from the scatter plot it seems that for larger loan amounts the borrowerAPR 
+decrease as expected and and the correlation between the loan amount and the borrowerRate is 0.322.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots8}
+# scatter plot of the loan amount versus borrowerAPR ratio with introduced 
+#jitter to remove the overlapping of points
+ggplot(aes(x = LoanOriginalAmount, y = BorrowerAPR), data = loan_data) + geom_jitter(alpha = 0.05)
+# correlation between loan amount and BorrowerAPR
+cor.test(loan_data$LoanOriginalAmount,loan_data$BorrowerAPR)
+```
+
+### TotalProsperLoans versus the loan amount 
+from the scatter plot it seems that loan amount is not affected much by the
+number of the previous loans and this confirmed by the correlation test which 
+gives a corrlation of 0.06 which is very weak correlation.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots9}
+# scatter plot of the loan amount versus TotalProsperLoans ratio with introduced 
+#jitter to remove the overlapping of points removing 0 values in 
+#TotalProsperLoans
+ggplot(aes(x = LoanOriginalAmount, y = TotalProsperLoans), 
+       data = subset(loan_data, TotalProsperLoans!=0)) +
+  geom_jitter(alpha = 0.05)
+# correlation between TotalProsperLoans and loan amount
+with(subset(loan_data, TotalProsperLoans!=0), cor.test(LoanOriginalAmount,TotalProsperLoans ))
+
+```
+
+Now we want to look into the loan status and see what might affect it. we are
+interested in 3 loan categories: completed, charged off and default. 
+
+### Loan Year versus the average loan amount and average borrowerRate
+The largest loan amount was in 2014 = 11915 and the least was in 2005 with an 
+average of 3857.
+the borrower rate is the least in 2005 = 0.935 and the highest in 2011 = 0.23.
+we can see also that the loan amount and the borrowerRate don't follow the same 
+trend in terms of increase or drop.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots10}
+# group the loans by the list year and for each year measure the average of the
+#loan amount and the borrowerRate
+avg.yearly_loans <- loan_data %>% 
+  group_by(ListYear) %>% 
+  summarise(avg_loan_amount = mean(LoanOriginalAmount),
+            avg_borrowerRate= mean(BorrowerRate),
+            n = n())
+# average loan amount per year line plot
+p1 <- ggplot(data=avg.yearly_loans,aes(x=ListYear,y = avg_loan_amount,group =1))+geom_point(color='blue')+
+geom_line(color='blue') + ylab("Average Yearly Loan Amount")
+# average borrower rate per year line plot
+p2 <- ggplot(data=avg.yearly_loans,
+aes(x=ListYear,y = avg_borrowerRate, group = 2)) + geom_point(color ='red') + geom_line(color ='red') + ylab("Average Yearly Borrower Rate")
+
+grid.arrange(p1,p2, ncol=1)
+```
+
+### loanStatus versus the loan amount 
+we can see a varying loan amount for different loan status with the current
+loans having the highest amount and the cancelled having the least loan amount.
+comparing the charged off, completed and defaulted loans in terms of loan amount
+to see if it is a factor. we can see they don't differ much except in the max 
+loan amount for the completed status while the median and min being very close 
+loan amounts.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots11}
+# subset of loan data with loan status of completed, charged off and defaulted
+loan_data_Statussubset <- subset(loan_data, loan_data$LoanStatus %in% c('Completed','Chargedoff','Defaulted') )
+
+# boxplot for the loan amount versus all the loan status values
+p1 <- ggplot(aes(y = LoanOriginalAmount, x = LoanStatus), data = loan_data) + geom_boxplot() +  theme(text = element_text(size=8), 
+     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size=7))
+# boxplot for the loan amount versus 3 loan status values
+p2 <- ggplot(aes(y = LoanOriginalAmount, x = LoanStatus), 
+             data = loan_data_Statussubset) + geom_boxplot() 
+
+grid.arrange(p1,p2,ncol=1)
+# summary of loan amount versus loan status 
+by(loan_data$LoanOriginalAmount, loan_data$LoanStatus,summary)
+```
+
+### debtToIncomeRatio versus the loan status 
+we can see a varying debt to income ratio is associated with different loan
+status with the least debt to income ratio for the cancelled status followed by
+the completed loans and higher debt to income ratio is found with the defaulted 
+loans followed by the charged off loans and the ones that are past due. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots12}
+# subset of loan data with loan status of completed, charged off and defaulted
+loan_data_Statussubset <- subset(loan_data, loan_data$LoanStatus %in% c('Completed','Chargedoff','Defaulted') )
+# boxplot for the DebtToIncomeRatio versus all the loan status values
+p1 <- ggplot(aes(y = DebtToIncomeRatio, x = LoanStatus), data = loan_data) + geom_boxplot() + coord_cartesian(ylim = c(0,0.5)) + 
+  theme(text = element_text(size=8), 
+     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size=7))
+# boxplot for the DebtToIncomeRatio versus 3 loan status values
+p2 <- ggplot(aes(y = DebtToIncomeRatio, x = LoanStatus.modified), data = loan_data.without_na_creditRating) + geom_boxplot() +
+  coord_cartesian(ylim = c(0,0.5)) 
+
+grid.arrange(p1,p2,ncol=1)
+# summary of DebtToIncomeRatio versus loan status 
+by(loan_data$DebtToIncomeRatio,
+   loan_data$LoanStatus.modified,summary)
+
+```
+
+### list year versus the loan status 
+This show the distrubtion of different loan status across the years.In 2012-2014
+most of the loans are current. more loans are completed than defaulted in this 
+dataset.
+between 2006-2007 the defaulted loans percentage was around 39.00% compared to 
+around 60% completed after 2008 the percentage dropped to 32% and in 2009 it 
+dropped to 15%. it is good to note that these higher defaulted percentage were
+pre the economic crises in 2009. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots13}
+# group the loan data by the status and the listing year 
+# and for each of those groups measure the mean of the loan amount and the 
+#borrower rate and get the count and percentage of the group
+
+avg.yearly_loans_Status <- loan_data %>% 
+  group_by(ListYear, LoanStatus.modified) %>% 
+  summarise(avg_loan_amount = mean(LoanOriginalAmount), avg_borrower_rate =  mean(BorrowerRate), n = n()) %>%
+  mutate(percentage = n/sum(n)*100)
+
+# stacked barplot of the list year and number of each loan status group
+ggplot(aes(x = ListYear, y = n, fill= LoanStatus.modified), data =avg.yearly_loans_Status )+geom_bar(stat = 'identity')
+
+avg.yearly_loans_Status
+
+```
+
+### CreditRating versus the loan status 
+looking at the different CreditRating versus the loan status percentage. we can 
+for the better ratings we have more completed loans compared to the defaulted 
+ones while the Very poor rating had higher default percentage compared to the 
+compeleted loans. 
+- Exceptional Rating had 41.9% completed, 8% defaulted and 1.31% pastdue loans
+- Very Good Rating had 27.9% completed, 9.87% defaulted and 1.95% Pastdue loans
+- Good Rating had 34% completed, 18% defaulted and 2.23% Pastdue loans
+- Fair Rating had 45% completed and  55% defaulted.
+- Very Poor Rating had 29% completed, 70.7% defaulted.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots14}
+# group the loan data by the creditRating and the loan status 
+# for each group measure the average loan amount and borrowerRate and 
+# number of listing under that group and the percentage
+avg.creditRating_loans_Status <- loan_data.without_na_creditRating %>% 
+  group_by(CreditRating,LoanStatus.modified) %>% 
+  summarise(avg_loan_amount = mean(LoanOriginalAmount), avg_borrower_rate = mean(BorrowerRate) ,n = n()) %>%
+  mutate(percentage = n/sum(n)*100)
+
+# stacked barplot of the credit rating year and number of each loan status group
+ggplot(aes(x = CreditRating, y = n, fill= LoanStatus.modified), data =avg.creditRating_loans_Status )+geom_bar(stat = 'identity') +
+  ylab('Count of loans')
+
+avg.creditRating_loans_Status
+```
+
+### AvailableBankcardCredit versus borrowerRate 
+The two variables have a correlation of -0.344. higher bankcredit is correlated
+with smaller borrowerRate. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots18}
+# scatter plot of the AvailableBankcardCredit versus the borrowerRate
+# limiting the y scale considering any value higher than 1.5*IQR as an outlier
+# adding jitter to the data 
+ggplot(aes(y = AvailableBankcardCredit, x = BorrowerRate), data = subset(loan_data_Statussubset, !is.na(AvailableBankcardCredit))) + 
+  geom_jitter(alpha = .5) +scale_y_continuous(limits = c(0,quantile(available_bank_credit_subset$AvailableBankcardCredit,0.75) + IQR(available_bank_credit_subset$AvailableBankcardCredit)*1.5))
+# correlation test between AvailableBankcardCredit and BorrowerRate
+cor.test(loan_data$AvailableBankcardCredit,loan_data$BorrowerRate)
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \investigation. How did the feature(s) of interest vary with other features in
+\the dataset?
+In this part am trying to look into two things: first, the variables that might 
+is related to the borrower that affect the loan amount given to the borrower so 
+i looked into the following variables(Employmentstatus, Income Range, 
+CreditRating, listing category, TotalProsperLoans, DebtToIncomeRatio). secondly:
+the factors that can be associated with the loan status.
+
+- employment status: from the analysis we saw that different status had 
+different loan amounts and the highest loans were given to the employed and the 
+least to the part timers.
+
+- Income range: the relationship was as expected overall with the highest loan 
+amounts were given to the Income ranges of 100,000+, and the least amount given 
+to the income range less than 25000. the only anamoly seemed with income 0 that 
+was not with the least amount of loan given though 0 might be for NA values. 
+
+-creditRating: as expected that the higher credit rating got higher loan amount 
+by comparing the median for each of the ratings. The exceptional rating has the 
+most followed by the very good and the least amount was given to the very poor 
+rating.
+
+- debtoincome ratio: it seems that loan amount is not affected much by the 
+debtToincome ratio and this confirmed by the correlation test which gives a 
+corrlation of 0.01. 
+
+- listing category: we saw that each categorylisting had different loan amount
+ranges and the category that got the highest loan amount was the Debt 
+Consolidation and the least was for the student use.
+
+- TotalProsperLoans:  loan amount is not affected much by the number of the
+previous loans and this confirmed by the correlation test which gives a 
+corrlation of 0.06.
+
+- loan amount: comparing the charged off, completed and defaulted loans in 
+terms of loan amount to see if it is a factor. we can see they don't differ 
+much except in the max loan amount for the completed status while the median 
+and min being very close loan amounts
+
+- DebtToIncomeRatio: we can see a varying debt to income ratio is associated
+with different loan status with the least debt to income ratio for the cancelled 
+status followed by the completed loans and higher debt to income ratio is found 
+with the defaulted loans followed by the charged off loans and the ones that are
+past due
+
+- CreditRating versus the loan status percentage. higher credit ratings had more completed percentages compared to the defaulted ones while the Very poor rating 
+had higher defaulted percentage.
+
+- borrower rate versus loan amount: for larger loan amounts the borrower rate 
+decrease as expected and and the correlation between the loan amount and the borrowerRate is 0.3289.
+
+- loan amount and borrowerRate across the years: We can see also that the loan
+amount and the borrowerRate don't follow the same trend in terms of increase or
+drop.
+
+### Did you observe any interesting relationships between the other features 
+\ (not the main feature(s) of interest)?
+Loan status across the years. Between the years 2006-2007 the defaulted loans
+percentage was around 39.00% with around 60% completed and after 2008 the 
+percentage dropped to 32% and in 2009 it dropped to 15%. it is good to note that 
+these higher defaulted percentage were pre the economic crises in 2009.
+
+### What was the strongest relationship you found?
+
+- loanstatus versus the DebtToIncomeRatio 
+
+- IncomeRange versus the loanAmount
+
+- creditRating versus loanAmount
+
+-  borrowerRate versus loanAmount
+
+- creditRating versus loanStatus
+
+- AvailableBankcardCredit versus borrowerRate
+
+# Multivariate Plots Section
+
+### DebtTOincomeRatio versus loanStatus and CreditRating:
+we can see that for all the different creditRatings the completed loans are 
+the ones with the lowest DebtToIncomeRatio and the highest is for the Defaulted 
+loans.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots1}
+# boxplot for the DebtToIncomeRatio versus the loan status 
+# by adding credit rating as facet and limiting the y coordinates
+ggplot(aes(y = DebtToIncomeRatio, x = LoanStatus.modified, colour = LoanStatus.modified), data = loan_data.without_na_creditRating) + 
+  geom_boxplot() + coord_cartesian(ylim = c(0,0.4)) + 
+  theme(text = element_text(size =8)) + facet_wrap(~CreditRating)
+
+```
+
+### average loan amount for each Listing year  vs loan status
+It seems that loan amount is not related to the completed or default loans 
+across the years.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots2}
+
+# group the loan data by the creditRating and the loan status 
+# for each group measure the average loan amount, borrowerRate, borrowerAPR and 
+# number of listing under that group and the percentage
+avg.yearly_loans_Status <- loan_data %>% 
+  group_by(ListYear, LoanStatus.modified) %>% 
+  summarise(avg_loan_amount = mean(LoanOriginalAmount), avg_borrower_rate = mean(BorrowerRate), avg_borrower_apr = mean(BorrowerAPR),n = n()) %>%
+  mutate(percentage = n/sum(n)*100)
+
+# line plot for the average loan amount across the years divided by loan status
+ggplot(data=avg.yearly_loans_Status,aes(x=ListYear,y = avg_loan_amount,group =1))+geom_point(color='blue')+
+geom_line(color='blue') +
+  ylab("Average Yearly Loan Amount") + facet_wrap(~LoanStatus.modified)
+
+
+```
+
+### average borrowerRate for each Listing year  vs loan status
+it seems that higher borrowerRates are more likely to be defaulted loans 
+compared to other loans.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots3}
+# line plot for the average borrowerRate across the years divided by loan status
+ggplot(data=avg.yearly_loans_Status,aes(x=ListYear,y = avg_borrower_rate,group =1))+geom_point(color='red')+
+geom_line(color='red') +  ylab("Average Yearly Borrwer Rate") + facet_wrap(~LoanStatus.modified )
+
+```
+
+### loanAmount vs loan status, borrowerRate:
+we can see that most of the defaulted loans have a higher borrowerRate and low 
+loan while most completed lay with low loans and low borrowerrate.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots4}
+# subset the loan data by the compelted and defaulted loans 
+loan_data_Statussubset <- subset(loan_data, loan_data$LoanStatus.modified %in% c('Completed','Defaulted') )
+
+# scatter plot of the borrowerrate versus the loan amount coloured by the loan 
+#status
+ggplot(aes(x = BorrowerRate,y = LoanOriginalAmount ),
+data = loan_data_Statussubset) + geom_jitter( aes(colour = LoanStatus.modified)) 
+
+```
+
+### DebtTOincomeRatio versus loanStatus and Term:
+For shorter loans 12 term the pastdue had the highest debtTOincome Ratio while 
+the current and default had close ratio. for 36 and 60 terms the pastdue still
+had a higher ratio compared to the default though the longer the period of the 
+loan, the smaller the difference is between these two periods. and across all
+the terms the completed had the lowest DebtToIncomeRatio.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots8}
+# boxplot of DebtToIncomeRatio versus the loan status by different loan terms 
+ggplot(aes(y = DebtToIncomeRatio, x = LoanStatus.modified, colour = LoanStatus.modified), data = loan_data) + geom_boxplot() + 
+  coord_cartesian(ylim = c(0,0.75)) + 
+ facet_wrap(~as.factor(Term)) + xlab('Loan status')
+```
+
+### AvailableBankcardCredit versus borrowerRate and loanStatus:
+we know that AvailableBankcardCredit and borrowerRate has a correlation of 0.34 
+but when the 3 variables were combined it was clearer that lower borrowerRate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Multivariate_Plots9}
+# scatterplot of AvailableBankcardCredit vs borrowerRate divided by loan status 
+# and y is scaled by considering AvailableBankcardCredit above 1.5 IQR +Q3 as
+# outliers
+
+ggplot(aes(x = BorrowerRate,y = AvailableBankcardCredit ), data = subset(loan_data_Statussubset, !is.na(AvailableBankcardCredit))) + 
+  geom_jitter( aes(colour = LoanStatus.modified)) + 
+  scale_y_continuous(limits = c(0,quantile(available_bank_credit_subset$AvailableBankcardCredit,0.75)+
+ IQR(available_bank_credit_subset$AvailableBankcardCredit)*1.5))
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \investigation. Were there features that strengthened each other in terms of \looking at your feature(s) of interest?
+- DebtTOincomeRatio versus loanStatus and CreditRating: we can see that for all 
+the different creditRatings the completed loans are the ones with the lowest DebtToIncomeRatio and the highest is for the Defaulted loans.Though i would 
+expect that the better creditRating the lower the debtToIncome Ratio but this
+was not the case.
+
+- average yearly loan amount and the loan status: It seems that loan amount is
+not related to the completed or default loans across the years. but it seems 
+that the trend for different loan status is not the same across the years. so 
+this can be used as a variable to get the profiles for defaulted and completed 
+loans.
+
+- average borrowerRate for each Listing year vs loan status: it seems that
+higher borrowerRates are more likely to be defaulted loans compared to other 
+loans and also the trend across the year is matching for different loan types so
+we can see that the borrwerRate starts to decrease in 2011 and this seen across 
+all the loan Types.
+
+-loanAmount vs loan status, borrowerRate: most of the defaulted loans have a 
+higher borrowerRate and low loan while most completed lay with low loans and low borrowerrates.
+
+- DebtTOincomeRatio versus loanStatus and Term: For shorter loans 12 term the 
+pastdue had the highest debtTOincome Ratio while the current and default had 
+close ratio. for 36 and 60 terms the pastdue still had a higher ratio compared
+to the default though the longer the period of the loan, the smaller the 
+difference is between these two periods. and across all the terms the completed 
+had the lowest debtTo incomeratio
+
+- AvailableBankcardCredit, borrowerRate and loanStatus: the completed loans are
+more towards the left of the figure with lower borrowerRate and  different
+available bankcredit compared to defaulted with higher borrwerRates and loan 
+bankcredit which is expected.
+
+### Were there any interesting or surprising interactions between features?
+The seperation in defaulted loans and completed loans against borrowerRate and 
+available bank credit.
+
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the 
+\strengths and limitations of your model.
+
+not applicable  
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, message=FALSE, warning=FALSE,Plot_One}
+
+# line plot for the average loan amount across the years divided by loan status
+ggplot(data=avg.yearly_loans_Status,aes(x=ListYear,y = avg_borrower_apr,group =1))+geom_point(color='red')+
+geom_line(color='red')  +ylab("Average Yearly Borrwer Annual Rate") + facet_wrap(~LoanStatus.modified ) + 
+  ggtitle("Average Yearly Borrwer APR and Status")
+
+```
+
+### Description One
+This graph shows the average yearly borrowerAPR comparing it across different 
+loan status. observing the different loan status we can see that the defaulted 
+loans had the highest APR across the years. and there was an increase in the 
+borrwerAPR till 2011 and then it started to decrease in the following years for
+differnt loan status. 
+also for 2010 the highest peak in the borrowerAPR is present in the PastDue 
+loans which can be expected after the economical crises in mid 2009.
+a note that before year 2010 the loan status had completed and defaulted loans 
+status were present only.
+
+### Plot Two
+```{r echo=FALSE, message=FALSE, warning=FALSE,Plot_Two}
+# subset the data with only employed and unemployed employment status and
+# defaulted and completed loans 
+loan_data_employment_sub <- subset(loan_data, EmploymentStatus.modified %in% c('Employed', 'Not employed') & !is.na(DebtToIncomeRatio) & LoanStatus.modified
+                                   %in% c('Completed', 'Defaulted'))
+
+# boxplot of DebtToIncomeRatio versus the loan status by different loan terms 
+# and different employement status 
+ggplot(aes(y = DebtToIncomeRatio, x = EmploymentStatus.modified, colour = EmploymentStatus.modified), data = loan_data_employment_sub) + geom_boxplot() +
+  theme(text = element_text(size =6.5)) + coord_cartesian(ylim = c(0,0.75)) + facet_grid(LoanStatus.modified~Term)+ xlab('Employment Status') + 
+  ylab(' Debt To Income Ratio')
+
+```
+
+### Description Two
+
+- it seems that for shorter loans 12 it is unlikely to give unemployed
+invidiudals these terms (in this dataset we only had one unemployed individual).
+
+- as expected the unemployed had a higher debt to income ratio and those who 
+defaulted all have higher debt to income ratio regardless of the employement.
+
+- also for the long term loans all of the unemployed individuals defaulted the
+loans
+
+
+### Plot Three
+```{r echo=FALSE, message=FALSE, warning=FALSE,Plot_Three}
+
+# scatter plot of the loan amount versus borrowerRate split for differnt years 
+# and colored by the creditRating
+
+ggplot(aes(y = LoanOriginalAmount, x = BorrowerRate ),
+       data = loan_data.without_na_creditRating) +
+  geom_jitter(alpha = 0.5,aes(colour = CreditRating)) +
+scale_y_continuous(limits = c(0,25000))+theme(text = element_text(size =6.5)) +
+ facet_wrap(~ListYear) + xlab('Borrower Rate') + ylab('Available Bank Credit') +
+ggtitle('Borrower Rate versus the Available Bank Credit and the CreditRating 
+        across the years 2006 -2014') +
+  scale_color_brewer(type = "div", palette = "RdYlBu", name="Credit\nRating",
+                     direction=-1)+
+  guides(color=guide_legend(override.aes = list(alpha = 1)))
+
+```
+
+### Description Three
+-I used this figure to study the distribution of the different CreditRating 
+across the years 2006-2014 according to the available bank credit and the
+borrowerRate correlation. 
+
+-the first thing that is noticable that Fair credit Rating was more visible in 
+the years before 2009 (the economic crisies)where it is assccoiated with higher
+borrower rate and lower bank credit but it seems after the economic crisies less
+people with this credit Rating got loans and more people with ratings of good 
+and higher were given loans.
+
+- the borrower rate seemed to depend on the available bank credit. 
+
+- the data is almost segmented for each rating with most of the lower 
+borrowerRates is given to the exceptional rating followed by the very good 
+rating which seems as the most common loans rating after year 2009.
+
+------
+
+# Reflection
+
+In this Exploration we looked into porpser loans dataset and trying to 
+understand the characterisitcs of the borrowers and the loan attributes
+
+- the given loan amount was  subject to the following variables:  employmenet 
+status, credit rating (result from the creditscore), Income range, loan listing, borrower rate.
+
+- the completion of the loans was subject to: Debt To income Ratio, borrowerRate
+, CreditRating, Term.
+
+- Most of the loans are listed under Debt Consolidation category and the least 
+listings are for RVs.
+
+- The categories in the loan status are: Cancelled,  Chargedoff, Completed,
+Current, Defaulted, FinalPaymentInProgress, PastDue. Though most of the loans 
+presented are listed under current loans. To make the analysis easier i combined
+the loan staus together and resulting in  current loans  percentage of 49%, 
+pastdue is around 2%, defaulted around 15% and completed around 33% 
+
+- The percentage of the Employed  in the data we have is 59.1%. and the percent
+of not employed is 0.733%. 
+
+- observing the number of loan listings across the years; the least was in 2005 
+which is the year the propser company was founded and then year 2009 since it is
+follows the economical crisises and the investment bank Lehman Brothers.
+
+- Between the years 2006-2007 the defaulted loans percentage was around 39.00% 
+with around 60% completed and after 2008 the percentage dropped to 32% and in 
+2009 it dropped to 15%. it is good to note that these higher defaulted 
+percentage were pre the economic crises in 2009.
+
+- In year 2010 following the economic crises there was an increase in the 
+borrower rates.
+
+- Loan Term : most of the given loans had a term length of 36. For shorter loans
+12 term the pastdue had the highest debtTOincome Ratio while the current and 
+default had close ratio. for 36 and 60 terms the pastdue still had a higher
+ratio compared to the default though the longer the period of the loan, the 
+smaller the difference is between these two periods. and across all the terms 
+the completed had the lowest DebtToIncomeRatio. and as expected the unemployed 
+had a higher debt to income ratio and those who defaulted all have higher debt 
+to income ratio regardless of the employement. also for the long term loans all
+of the unemployed individuals defaulted the loans.
+
+- The Fair credit Rating was more visible in the years before 2009 (the economic crisies) where it is assccoiated with higher borrower rate and lower bank credit
+but it seems after the economic crisies less people with this credit Rating got 
+loans and more people with ratings of good and higher were given loans. after 
+year 2009 most of the lower borrowerRates is given to the exceptional rating 
+followed by the very good rating and it seems it is most common loans rating 
+after year 2009.
+
+# Resources:
+- https://stats.stackexchange.com/questions/798/calculating-optimal-number-of-bins-in-a-histogram
+- https://www.experian.com/blogs/ask-experian/credit-education/score-basics/what-is-a-good-credit-score/
+- https://www.forbes.com/sites/investopedia/2013/08/06/the-basics-of-lines-of-credit/#72d8b1284263
+- https://en.wikipedia.org/wiki/Credit_score
+- https://www.badcredit.org/delinquencies-defaults-charge-offs-whats-difference/
+- https://www.consumerfinance.gov/ask-cfpb/what-is-the-difference-between-a-mortgage-interest-rate-and-an-apr-en-135/
+
+```{r}
+write.csv(loan_data, file = "loanDATA.csv")
+```
