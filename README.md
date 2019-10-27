@@ -4,6 +4,7 @@
 * Udacity Data analyst Nanodegree projects
 * This repo contain the projects that i worked on for the data analyst udacity nanodegree for both terms.
 * I was a recipient of the bertelsmann udacity scholarship and challenge
+* the certificate: https://confirm.udacity.com/7RECDVEP
 
 ## Table of Contents
 1. [Weather Trends Exploration](https://github.com/nesreensada/DataAnalystNanoDegree-DAND/tree/master/Project%201%20-%20Explore%20Weather%20Trends): Analyze local and global temperature data and compare the temperature trends. **tools**: SQL, Excel. 
